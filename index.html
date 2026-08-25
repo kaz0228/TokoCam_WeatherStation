@@ -28,6 +28,27 @@
   .sub{color:var(--ink-dim);font-size:14px;margin-top:6px}
   .updated{font-family:"Roboto Mono",monospace;font-size:13px;color:var(--ink-dim);margin-top:14px}
   .updated b{color:var(--ink);font-weight:500}
+  .notice{background:var(--panel);border:1px solid var(--line);
+    border-left:3px solid var(--accent);border-radius:8px;
+    padding:14px 18px;margin-bottom:28px;font-size:13.5px;line-height:1.75}
+  .notice p{margin:0;padding:0}
+  .notice .lead{color:var(--ink);margin-bottom:6px}
+  .notice .caution{color:var(--warm);font-weight:500}
+  .specs{background:var(--panel);border:1px solid var(--line);border-radius:10px;
+    padding:20px 22px;margin-bottom:32px}
+  .specs h2{font-size:14px;font-weight:500;letter-spacing:0.03em;color:var(--ink);
+    margin-bottom:14px;display:flex;align-items:center;gap:8px}
+  .specs-grid{display:grid;grid-template-columns:1fr 1fr;gap:20px}
+  @media(max-width:700px){.specs-grid{grid-template-columns:1fr}}
+  .specs .photo img{width:100%;border-radius:8px;display:block}
+  .specs .photo .cap{font-size:11.5px;color:var(--ink-dim);margin-top:6px}
+  .specs dl{margin:0;font-size:13px;line-height:1.7}
+  .specs dl div{display:flex;gap:10px;padding:3px 0;border-bottom:1px solid var(--line)}
+  .specs dl div:last-child{border-bottom:none}
+  .specs dt{color:var(--ink-dim);flex:0 0 6.5em}
+  .specs dd{margin:0;color:var(--ink);font-family:"Roboto Mono",monospace;font-size:12.5px}
+  .specs .calib{margin-top:14px;font-size:12px;color:var(--ink-dim);line-height:1.8}
+  .specs .calib b{color:var(--ink);font-weight:500}
   .dot{display:inline-block;width:8px;height:8px;border-radius:50%;background:var(--accent);
     margin-right:7px;vertical-align:middle;animation:pulse 2.4s infinite}
   @keyframes pulse{0%{box-shadow:0 0 0 0 rgba(94,200,216,0.45)}
@@ -89,6 +110,39 @@
     <div class="sub">早稲田大学 人間科学学術院 ／ 微気象観測データ</div>
     <div class="updated"><span class="dot"></span><b id="stamp">----/--/-- --:--</b> 現在</div>
   </header>
+
+  <div class="notice">
+    <p class="lead">早稲田大学所沢キャンパス内における微気象・放射環境の研究・教育目的の観測データを自動配信しています。</p>
+    <p>本データはキャンパス局所環境を対象とした観測値であり、周辺地域を代表する一般気象観測ではありません。</p>
+    <p class="caution">防災用途・予報用途には使用しないでください。</p>
+  </div>
+
+  <section class="specs">
+    <h2>観測諸元</h2>
+    <div class="specs-grid">
+      <div class="photo">
+        <img src="station.jpg" alt="所沢キャンパスの気象観測ポスト（芝地に設置）">
+        <div class="cap">観測地点の様子（キャンパス内の芝地に設置）</div>
+      </div>
+      <div class="info">
+        <dl>
+          <div><dt>所在地</dt><dd>早稲田大学所沢キャンパス（埼玉県所沢市）</dd></div>
+          <div><dt>緯度経度</dt><dd>35.785641, 139.392146</dd></div>
+          <div><dt>標高</dt><dd>146.1 m（DEM5A）</dd></div>
+          <div><dt>設置環境</dt><dd>芝地・開放地</dd></div>
+          <div><dt>気温・湿度</dt><dd>地上 1.5 m</dd></div>
+          <div><dt>風向・風速</dt><dd>地上 3 m</dd></div>
+          <div><dt>端末</dt><dd>MI2525R49（FT2-16CH）</dd></div>
+        </dl>
+        <div class="calib">
+          <b>校正・検定について：</b>
+          気温・湿度・風向・風速・日射量の各測器は<b>気象庁検定</b>を取得しています。
+          長波放射計はメーカー校正（2025年4月）。
+          黒球温度・地中伝導熱は検定・校正を行っていない参考値です。
+        </div>
+      </div>
+    </div>
+  </section>
 
   <section class="latest" id="latest"></section>
 
