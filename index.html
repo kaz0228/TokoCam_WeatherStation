@@ -196,8 +196,8 @@
       <div class="chart-box"><canvas id="yTempHum"></canvas></div>
     </div>
     <div class="card">
-      <h2>最大風速の推移</h2>
-      <div class="note">前日 00:00 〜 23:00</div>
+      <h2>最大風速 ・ 風向の推移</h2>
+      <div class="note">前日・1時間平均（風向は右軸 0〜360°）</div>
       <div class="chart-box"><canvas id="yWind"></canvas></div>
     </div>
     <div class="card">
@@ -214,8 +214,8 @@
 
   <footer>
     観測地点：早稲田大学所沢キャンパス（埼玉県所沢市）／ 端末 MI2525R49（FT2-16CH）<br>
-    データは M.C.S IoT Cloud より毎正時に取得し、直近24時間は1時間ごと、
-    前日分は0時に1日1回更新しています。日射量は気象庁検定済みの測器値です。<br>
+    データは M.C.S IoT Cloud より10分ごとに取得しています。直近24時間は10分値、
+    前日分は1時間平均（24点）で表示しています。日射量は気象庁検定済みの測器値です。<br>
     風速は最大風速を表示しています。<br>
     データについてのお問い合わせ（管理者）：
     <script>
@@ -374,6 +374,15 @@ function drawWind(id,H){
   lineChart(id,H.map(r=>r.time),[ds("最大風速 (m/s)",H.map(r=>r.wind),"#5ec8d8")],
     {min:YRANGE.wind.min,max:YRANGE.wind.max,title:"m/s"});
 }
+function drawWindWithDir(id,H){
+  const dirDs=ds("風向 (°)",H.map(r=>r.wind_deg),"#c9a24b","y1");
+  dirDs.pointRadius=3; dirDs.tension=0;  // 折れ線＋点。0/360またぎは急な上下で現れる
+  lineChart(id,H.map(r=>r.time),[
+    ds("最大風速 (m/s)",H.map(r=>r.wind),"#5ec8d8","y"),
+    dirDs,
+  ],{min:YRANGE.wind.min,max:YRANGE.wind.max,title:"m/s"},
+    {min:0,max:360,title:"風向 °"});
+}
 function drawWbgtSeries(id,H){
   const w=H.map(r=>estimateWBGT(r.temperature,r.humidity,r.globe_temp));
   lineChart(id,H.map(r=>r.time),[ds("WBGT (℃)",w,"#e0895a")],
@@ -405,10 +414,10 @@ function renderYesterday(y){
   }
   const H=y.history;
   drawTempHum("yTempHum",H);
-  drawWind("yWind",H);
+  drawWindWithDir("yWind",H);
   drawWbgtSeries("yWbgt",H);
   drawRad("yRad",H);
-  document.getElementById("ydayNote1").textContent=`${y.date} 00:00 〜 23:00`;
+  document.getElementById("ydayNote1").textContent=`${y.date}（1時間平均）`;
 }
 
 // ダミー（未取得時）

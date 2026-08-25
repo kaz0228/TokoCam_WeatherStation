@@ -155,8 +155,9 @@ async def get_mcs_records() -> list[dict]:
         raise RuntimeError("iotdataを含むM.C.SのJSONレスポンスを取得できませんでした。")
     return captured[-1]["records"]
 
-def select_latest_hourly_record(records: list[dict]) -> dict:
-    hourly = []
+def select_latest_record(records: list[dict]) -> dict:
+    """取得できたレコードのうち、最新の1件（10分値でも可）を返す。"""
+    parsed = []
     for record in records:
         item = parse_record(record)
         if item is None:
@@ -165,12 +166,11 @@ def select_latest_hourly_record(records: list[dict]) -> dict:
             dt = parse_mcs_datetime(item["timestamp"])
         except Exception:
             continue
-        if dt.minute == 0:
-            hourly.append((dt, item))
-    if not hourly:
-        raise RuntimeError("正時（XX:00）のデータが見つかりませんでした。")
-    hourly.sort(key=lambda x: x[0])
-    return hourly[-1][1]
+        parsed.append((dt, item))
+    if not parsed:
+        raise RuntimeError("観測レコードを解釈できませんでした。")
+    parsed.sort(key=lambda x: x[0])
+    return parsed[-1][1]
 
 # =========================
 # レコード変換（チャンネル対応）
@@ -284,19 +284,70 @@ def write_data_json(latest: dict, history: list[dict]):
     DATA_JSON.write_text(json.dumps(payload, ensure_ascii=False, indent=1),
                          encoding="utf-8")
 
+def hourly_average(rows: list[dict]) -> list[dict]:
+    """10分値のリストを1時間ごとに平均して24点に集約する。
+
+    風向(角度)は平均に不向きなので除外。風速・気温・放射などは
+    その時間帯に存在する値の単純平均。値が1つも無い時間は None。
+    """
+    AVG_KEYS = ("temperature", "globe_temp", "humidity", "wind",
+                "solar", "sw_down", "sw_up", "lw_down", "lw_up", "soil_heat")
+    buckets = {h: [] for h in range(24)}
+    for r in rows:
+        try:
+            hh = int(r["timestamp"][11:13])
+        except (KeyError, ValueError):
+            continue
+        buckets[hh].append(r)
+
+    out = []
+    for h in range(24):
+        group = buckets[h]
+        item = {"time": f"{h:02d}:00"}
+        for k in AVG_KEYS:
+            vals = [g[k] for g in group if g.get(k) is not None]
+            item[k] = round(sum(vals) / len(vals), 2) if vals else None
+        # 風向は角度平均が不適切なので、ベクトル平均で代表値を出す
+        item["wind_deg"] = _vector_mean_direction(group)
+        out.append(item)
+    return out
+
+
+def _vector_mean_direction(group: list[dict]) -> Optional[float]:
+    """風速を重みにした風向のベクトル平均（0〜360度）。値が無ければNone。"""
+    import math
+    x = y = 0.0
+    n = 0
+    for g in group:
+        deg = g.get("wind_deg")
+        spd = g.get("wind")
+        if deg is None:
+            continue
+        w = spd if (spd is not None and spd > 0) else 1.0
+        rad = math.radians(deg)
+        x += w * math.cos(rad)
+        y += w * math.sin(rad)
+        n += 1
+    if n == 0 or (x == 0 and y == 0):
+        return None
+    ang = math.degrees(math.atan2(y, x)) % 360
+    return round(ang, 1)
+
+
 def write_yesterday_json(now_ts: str):
     now = datetime.strptime(now_ts, "%Y-%m-%d %H:%M")
     yday = (now - timedelta(days=1)).strftime("%Y-%m-%d")
-    rows = load_day_history(yday)
-    if not rows:
+    raw = load_day_history(yday)
+    if not raw:
         print(f"前日（{yday}）のデータがまだありません")
         return
+    rows = hourly_average(raw)   # 10分値 → 1時間平均24点
     YDAY_JSON.write_text(
         json.dumps({"date": yday.replace("-", "/"), "history": rows},
                    ensure_ascii=False, indent=1),
         encoding="utf-8",
     )
-    print(f"yesterday.json 更新（{yday} / {len(rows)} 点）")
+    print(f"yesterday.json 更新（{yday} / 1時間平均 {len(rows)} 点 / 元 {len(raw)} 点）")
 
 # =========================
 # git push
@@ -326,7 +377,7 @@ def git_push():
 # =========================
 async def run_once():
     records = await get_mcs_records()
-    item = select_latest_hourly_record(records)
+    item = select_latest_record(records)
     row = record_to_row(item)
     print("取得:", row["timestamp"],
           f'気温{row["temperature"]:.1f}℃ 黒球{row["globe_temp"]:.1f}℃ '
@@ -340,7 +391,9 @@ async def run_once():
     write_data_json(row, history)
     print(f"data.json 更新（直近24時間 {len(history)} 点）")
 
-    if datetime.strptime(row["timestamp"], "%Y-%m-%d %H:%M").hour == 0:
+    # 日付が変わった直後（00:00〜00:09台）の実行で、前日1日分を集約
+    ndt = datetime.strptime(row["timestamp"], "%Y-%m-%d %H:%M")
+    if ndt.hour == 0 and ndt.minute < 10:
         write_yesterday_json(row["timestamp"])
 
     if GIT_PUSH and is_new:
