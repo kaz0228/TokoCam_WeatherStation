@@ -1,0 +1,15 @@
+# X投稿スクリプト（認証キー直書きのため公開しない）
+mcs_x_weather_bot.py
+mcs_x_weather_bot*.py
+
+# 環境・秘密情報
+.env
+*.env
+secrets*.json
+
+# macOS
+.DS_Store
+
+# Python
+__pycache__/
+*.pyc

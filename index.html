@@ -1,0 +1,398 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>早稲田大学所沢キャンパス 気象観測</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Zen+Kaku+Gothic+New:wght@400;500;700&family=Roboto+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<style>
+  :root{
+    --bg:#0f1417; --panel:#161d21; --panel-2:#1c252a; --line:#2a373d;
+    --ink:#e8eef0; --ink-dim:#8ea0a7; --accent:#5ec8d8;
+    --warm:#e0895a; --cool:#6db3e6; --sun:#e8c15a; --globe:#d05a6e;
+    --grid:rgba(120,140,148,0.14);
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  html{-webkit-text-size-adjust:100%}
+  body{background:var(--bg);color:var(--ink);
+    font-family:"Zen Kaku Gothic New",system-ui,sans-serif;line-height:1.6;
+    padding:clamp(16px,4vw,48px);}
+  .wrap{max-width:1040px;margin:0 auto}
+  header{border-bottom:1px solid var(--line);padding-bottom:20px;margin-bottom:28px}
+  .eyebrow{font-family:"Roboto Mono",monospace;font-size:12px;letter-spacing:0.22em;
+    text-transform:uppercase;color:var(--accent);margin-bottom:10px}
+  h1{font-size:clamp(22px,4.2vw,34px);font-weight:700;letter-spacing:0.01em}
+  .sub{color:var(--ink-dim);font-size:14px;margin-top:6px}
+  .updated{font-family:"Roboto Mono",monospace;font-size:13px;color:var(--ink-dim);margin-top:14px}
+  .updated b{color:var(--ink);font-weight:500}
+  .dot{display:inline-block;width:8px;height:8px;border-radius:50%;background:var(--accent);
+    margin-right:7px;vertical-align:middle;animation:pulse 2.4s infinite}
+  @keyframes pulse{0%{box-shadow:0 0 0 0 rgba(94,200,216,0.45)}
+    70%{box-shadow:0 0 0 7px rgba(94,200,216,0)}100%{box-shadow:0 0 0 0 rgba(94,200,216,0)}}
+
+  .section-label{font-family:"Roboto Mono",monospace;font-size:12px;letter-spacing:0.16em;
+    text-transform:uppercase;color:var(--accent);margin:36px 0 14px;
+    padding-bottom:8px;border-bottom:1px solid var(--line)}
+
+  .latest{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:1px;
+    background:var(--line);border:1px solid var(--line);border-radius:10px;overflow:hidden;margin-bottom:24px}
+  .cell{background:var(--panel);padding:18px 18px 16px}
+  .cell .k{font-size:12.5px;color:var(--ink-dim);letter-spacing:0.04em}
+  .cell .v{font-family:"Roboto Mono",monospace;font-weight:500;
+    font-size:clamp(24px,3.4vw,30px);margin-top:4px;line-height:1.1}
+  .cell .u{font-size:14px;color:var(--ink-dim);margin-left:2px;font-weight:400}
+  .cell.hero{grid-column:span 2}
+  .cell.hero .v{font-size:clamp(34px,6vw,52px);color:var(--warm)}
+
+  .wbgt{display:grid;grid-template-columns:auto 1fr;gap:20px;align-items:center;
+    background:var(--panel);border:1px solid var(--line);border-radius:10px;
+    padding:20px 22px;margin-bottom:32px}
+  .wbgt .fig{width:96px;height:120px;flex-shrink:0}
+  .wbgt .info .lv{font-family:"Roboto Mono",monospace;font-weight:700;
+    font-size:clamp(30px,6vw,44px);line-height:1}
+  .wbgt .info .lv .u{font-size:16px;color:var(--ink-dim);font-weight:400}
+  .wbgt .badge{display:inline-block;margin-top:8px;padding:4px 12px;border-radius:999px;
+    font-weight:700;font-size:15px;letter-spacing:0.04em}
+  .wbgt .advice{color:var(--ink-dim);font-size:13.5px;margin-top:8px;max-width:52ch}
+  .wbgt .disclaimer{color:var(--ink-dim);font-size:11.5px;margin-top:10px;opacity:0.8}
+
+  .charts{display:grid;grid-template-columns:1fr 1fr;gap:20px}
+  @media(max-width:760px){.charts{grid-template-columns:1fr}
+    .wbgt{grid-template-columns:1fr;justify-items:center;text-align:center}}
+  .card{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:18px 18px 14px}
+  .card h2{font-size:14px;font-weight:500;letter-spacing:0.03em;color:var(--ink);margin-bottom:2px}
+  .card .note{font-size:12px;color:var(--ink-dim);margin-bottom:12px}
+  .chart-box{position:relative;height:240px}
+  .full{grid-column:1 / -1}
+
+  details.yday{margin-top:8px}
+  details.yday summary{cursor:pointer;color:var(--accent);font-size:14px;
+    font-family:"Roboto Mono",monospace;list-style:none;padding:6px 0}
+  details.yday summary::-webkit-details-marker{display:none}
+  details.yday summary::before{content:"▸ ";}
+  details.yday[open] summary::before{content:"▾ ";}
+
+  footer{margin-top:36px;padding-top:18px;border-top:1px solid var(--line);
+    color:var(--ink-dim);font-size:12.5px;line-height:1.8}
+  footer a{color:var(--accent);text-decoration:none}
+  code{font-family:"Roboto Mono",monospace;color:var(--ink-dim)}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <div class="eyebrow">Waseda Univ. Tokorozawa Campus</div>
+    <h1>所沢キャンパス 気象観測</h1>
+    <div class="sub">早稲田大学 人間科学学術院 ／ 微気象観測データ</div>
+    <div class="updated"><span class="dot"></span><b id="stamp">----/--/-- --:--</b> 現在</div>
+  </header>
+
+  <section class="latest" id="latest"></section>
+
+  <section class="wbgt">
+    <svg class="fig" id="wbgtFig" viewBox="0 0 96 120" aria-hidden="true"></svg>
+    <div class="info">
+      <div class="lv"><span id="wbgtVal">—</span><span class="u"> ℃（WBGT）</span></div>
+      <span class="badge" id="wbgtBadge">—</span>
+      <div class="advice" id="wbgtAdvice"></div>
+      <div class="disclaimer">
+        黒球温度・気温・湿度から屋外式 WBGT＝0.7×湿球＋0.2×黒球＋0.1×気温 で算出。
+        危険度区分は環境省「熱中症予防情報サイト」の指針に準拠。
+      </div>
+    </div>
+  </section>
+
+  <div class="section-label">直近24時間</div>
+  <section class="charts">
+    <div class="card">
+      <h2>気温 ・ 黒球温度 ・ 湿度</h2>
+      <div class="note">直近24時間（1時間ごと）</div>
+      <div class="chart-box"><canvas id="chTempHum"></canvas></div>
+    </div>
+    <div class="card">
+      <h2>風向 ・ 最大風速（最新の瞬時値）</h2>
+      <div class="note">方位＝最大風向、矢印の長さ＝最大風速（最大10 m/s）</div>
+      <div class="chart-box"><canvas id="chWindRadar"></canvas></div>
+    </div>
+    <div class="card">
+      <h2>最大風速の推移</h2>
+      <div class="note">直近24時間（1時間ごと）</div>
+      <div class="chart-box"><canvas id="chWind"></canvas></div>
+    </div>
+    <div class="card">
+      <h2>WBGT の推移</h2>
+      <div class="note">直近24時間（1時間ごと）</div>
+      <div class="chart-box"><canvas id="chWbgt"></canvas></div>
+    </div>
+    <div class="card full">
+      <h2>放射収支 ・ 地中伝導熱</h2>
+      <div class="note">日射量・上下向き短波・上下向き長波・地中伝導熱（直近24時間・1時間ごと）</div>
+      <div class="chart-box" style="height:300px"><canvas id="chRad"></canvas></div>
+    </div>
+  </section>
+
+  <div class="section-label">前日（1日分）</div>
+  <section class="charts">
+    <div class="card">
+      <h2>気温 ・ 黒球温度 ・ 湿度</h2>
+      <div class="note" id="ydayNote1">前日 00:00 〜 23:00</div>
+      <div class="chart-box"><canvas id="yTempHum"></canvas></div>
+    </div>
+    <div class="card">
+      <h2>最大風速の推移</h2>
+      <div class="note">前日 00:00 〜 23:00</div>
+      <div class="chart-box"><canvas id="yWind"></canvas></div>
+    </div>
+    <div class="card">
+      <h2>WBGT の推移</h2>
+      <div class="note">前日 00:00 〜 23:00</div>
+      <div class="chart-box"><canvas id="yWbgt"></canvas></div>
+    </div>
+    <div class="card">
+      <h2>放射収支 ・ 地中伝導熱</h2>
+      <div class="note">前日 00:00 〜 23:00</div>
+      <div class="chart-box"><canvas id="yRad"></canvas></div>
+    </div>
+  </section>
+
+  <footer>
+    観測地点：早稲田大学所沢キャンパス（埼玉県所沢市）／ 端末 MI2525R49（FT2-16CH）<br>
+    データは M.C.S IoT Cloud より毎正時に取得し、直近24時間は1時間ごと、
+    前日分は0時に1日1回更新しています。日射量は気象庁検定済みの測器値です。<br>
+    風速は最大風速を表示しています。<br>
+    <span id="fnote"></span>
+  </footer>
+</div>
+
+<script>
+const FIELDS = [
+  {key:"temperature", label:"気温",       unit:"℃",   hero:true},
+  {key:"globe_temp",  label:"黒球温度",   unit:"℃"},
+  {key:"humidity",    label:"湿度",       unit:"%"},
+  {key:"wind",        label:"最大風速",   unit:"m/s", wind:true},
+  {key:"solar",       label:"日射量",     unit:"W/m²"},
+  {key:"sw_down",     label:"下向き短波", unit:"W/m²"},
+  {key:"sw_up",       label:"上向き短波", unit:"W/m²"},
+  {key:"lw_down",     label:"下向き長波", unit:"W/m²"},
+  {key:"lw_up",       label:"上向き長波", unit:"W/m²"},
+  {key:"soil_heat",   label:"地中伝導熱", unit:"W/m²"},
+];
+const fmt = v => (v===null||v===undefined||isNaN(v)) ? "—" : Number(v).toFixed(2);
+
+// WBGT（屋外式・黒球あり）: 0.7Tw + 0.2Tg + 0.1Ta
+// 湿球Twは Stull(2011) 近似。黒球Tgは実測(ch9)。
+function estimateWBGT(Ta, RH, Tg){
+  if(Ta==null||RH==null||Tg==null) return null;
+  RH=Math.max(1,Math.min(100,RH));
+  const Tw = Ta*Math.atan(0.151977*Math.sqrt(RH+8.313659))
+    + Math.atan(Ta+RH) - Math.atan(RH-1.676331)
+    + 0.00391838*Math.pow(RH,1.5)*Math.atan(0.023101*RH) - 4.686035;
+  return 0.7*Tw + 0.2*Tg + 0.1*Ta;
+}
+function wbgtLevel(w){
+  if(w==null) return {name:"—",color:"#8ea0a7",advice:"データを取得できませんでした。"};
+  if(w>=31) return {name:"危険",color:"#c0392b",
+    advice:"高齢者は安静でも危険。外出は避け、涼しい室内へ。運動は原則中止。"};
+  if(w>=28) return {name:"厳重警戒",color:"#e67e22",
+    advice:"外出時は炎天下を避け、こまめに休憩と水分・塩分補給を。激しい運動は避ける。"};
+  if(w>=25) return {name:"警戒",color:"#e8c15a",
+    advice:"運動や作業では定期的に休憩を。積極的に水分補給を。"};
+  if(w>=21) return {name:"注意",color:"#5ec8d8",
+    advice:"一般に危険は小さいが、激しい運動時は水分補給を忘れずに。"};
+  return {name:"ほぼ安全",color:"#6ec98e",advice:"通常は安全。適宜水分補給を。"};
+}
+function drawWbgtFigure(color){
+  const svg=document.getElementById("wbgtFig");
+  svg.innerHTML=`
+    <defs><radialGradient id="halo" cx="50%" cy="35%" r="60%">
+      <stop offset="0%" stop-color="${color}" stop-opacity="0.35"/>
+      <stop offset="100%" stop-color="${color}" stop-opacity="0"/>
+    </radialGradient></defs>
+    <ellipse cx="48" cy="44" rx="46" ry="44" fill="url(#halo)"/>
+    <circle cx="76" cy="20" r="9" fill="${color}"/>
+    ${[0,45,90,135,180,225,270,315].map(a=>{
+      const r1=12,r2=16,rad=a*Math.PI/180;
+      return `<line x1="${76+r1*Math.cos(rad)}" y1="${20+r1*Math.sin(rad)}"
+        x2="${76+r2*Math.cos(rad)}" y2="${20+r2*Math.sin(rad)}"
+        stroke="${color}" stroke-width="2" stroke-linecap="round"/>`;
+    }).join("")}
+    <circle cx="40" cy="40" r="11" fill="${color}"/>
+    <path d="M40 53 C28 53 24 64 24 78 L24 104 L34 104 L36 82 L40 82 L44 82 L46 104 L56 104 L56 78 C56 64 52 53 40 53 Z" fill="${color}"/>
+  `;
+}
+
+const AX={color:"#8ea0a7",font:{family:"'Roboto Mono', monospace",size:11}};
+const GRID={color:"rgba(120,140,148,0.14)"};
+Chart.defaults.color="#8ea0a7";
+Chart.defaults.font.family="'Roboto Mono', monospace";
+
+const YRANGE={
+  temp:{min:-5,max:50}, hum:{min:0,max:100},
+  wind:{min:0,max:12}, wbgt:{min:0,max:40},
+  rad:{min:-100,max:1000},
+};
+
+function ds(label,data,color,axis){
+  return {label,data,borderColor:color,backgroundColor:color+"22",
+    borderWidth:2,pointRadius:2,pointHoverRadius:4,tension:0.3,
+    yAxisID:axis||"y",spanGaps:true};
+}
+function lineChart(id,labels,datasets,y,y2){
+  const opts={responsive:true,maintainAspectRatio:false,
+    interaction:{mode:"index",intersect:false},
+    plugins:{legend:{labels:{boxWidth:12,boxHeight:12,padding:12,font:{size:10}}},
+      tooltip:{backgroundColor:"#1c252a",borderColor:"#2a373d",borderWidth:1}},
+    scales:{x:{grid:GRID,ticks:{...AX,maxTicksLimit:13}},
+      y:{grid:GRID,ticks:AX,min:y?.min,max:y?.max,
+        title:{display:!!y?.title,text:y?.title,color:"#8ea0a7"}}}};
+  if(y2){opts.scales.y1={position:"right",grid:{drawOnChartArea:false},ticks:AX,
+    min:y2.min,max:y2.max,title:{display:true,text:y2.title,color:"#8ea0a7"}};}
+  return new Chart(document.getElementById(id),{type:"line",data:{labels,datasets},options:opts});
+}
+function windRadar(id,dir_deg,speed){
+  const labels=["北","北北東","北東","東北東","東","東南東","南東","南南東",
+    "南","南南西","南西","西南西","西","西北西","北西","北北西"];
+  const idx=Math.round(((dir_deg%360)/22.5))%16;
+  const data=labels.map((_,i)=>i===idx?Math.min(speed,10):0);
+  return new Chart(document.getElementById(id),{
+    type:"radar",
+    data:{labels,datasets:[{label:"最大風速 (m/s)",data,
+      borderColor:"#5ec8d8",backgroundColor:"rgba(94,200,216,0.28)",
+      borderWidth:2,pointBackgroundColor:"#5ec8d8",
+      pointRadius:c=>c.raw>0?5:0}]},
+    options:{responsive:true,maintainAspectRatio:false,
+      plugins:{legend:{display:false},
+        tooltip:{callbacks:{label:c=>c.raw>0?`${c.label} ${c.raw.toFixed(1)} m/s`:""}}},
+      scales:{r:{min:0,max:10,angleLines:{color:GRID.color},grid:{color:GRID.color},
+        pointLabels:{color:"#8ea0a7",font:{size:11}},
+        ticks:{color:"#8ea0a7",backdropColor:"transparent",stepSize:2}}}}
+  });
+}
+
+function renderLatest(d){
+  const L=d.latest, host=document.getElementById("latest"); host.innerHTML="";
+  FIELDS.forEach(f=>{
+    const cell=document.createElement("div");
+    cell.className="cell"+(f.hero?" hero":"");
+    const val=f.wind
+      ? `${fmt(L.wind)}<span class="u"> ${f.unit}（${L.wind_dir??"—"}）</span>`
+      : `${fmt(L[f.key])}<span class="u"> ${f.unit}</span>`;
+    cell.innerHTML=`<div class="k">${f.label}</div><div class="v">${val}</div>`;
+    host.appendChild(cell);
+  });
+}
+function renderWbgtPanel(d){
+  const L=d.latest;
+  const wNow=estimateWBGT(L.temperature,L.humidity,L.globe_temp);
+  const lv=wbgtLevel(wNow);
+  document.getElementById("wbgtVal").textContent = wNow==null?"—":wNow.toFixed(1);
+  const badge=document.getElementById("wbgtBadge");
+  badge.textContent=lv.name; badge.style.background=lv.color+"22";
+  badge.style.color=lv.color; badge.style.border=`1px solid ${lv.color}`;
+  document.getElementById("wbgtAdvice").textContent=lv.advice;
+  drawWbgtFigure(lv.color);
+}
+
+// 気温・黒球・湿度／風速／WBGT／放射 の4系統を、24時間・前日の両方で使う
+function drawTempHum(id,H){
+  lineChart(id,H.map(r=>r.time),[
+    ds("気温 (℃)",H.map(r=>r.temperature),"#e0895a","y"),
+    ds("黒球温度 (℃)",H.map(r=>r.globe_temp),"#d05a6e","y"),
+    ds("湿度 (%)",H.map(r=>r.humidity),"#6db3e6","y1"),
+  ],{min:YRANGE.temp.min,max:YRANGE.temp.max,title:"温度 ℃"},
+    {min:YRANGE.hum.min,max:YRANGE.hum.max,title:"湿度 %"});
+}
+function drawWind(id,H){
+  lineChart(id,H.map(r=>r.time),[ds("最大風速 (m/s)",H.map(r=>r.wind),"#5ec8d8")],
+    {min:YRANGE.wind.min,max:YRANGE.wind.max,title:"m/s"});
+}
+function drawWbgtSeries(id,H){
+  const w=H.map(r=>estimateWBGT(r.temperature,r.humidity,r.globe_temp));
+  lineChart(id,H.map(r=>r.time),[ds("WBGT (℃)",w,"#e0895a")],
+    {min:YRANGE.wbgt.min,max:YRANGE.wbgt.max,title:"℃"});
+}
+function drawRad(id,H){
+  lineChart(id,H.map(r=>r.time),[
+    ds("日射量",H.map(r=>r.solar),"#e8c15a"),
+    ds("下向き短波",H.map(r=>r.sw_down),"#f0a95a"),
+    ds("上向き短波",H.map(r=>r.sw_up),"#c97d3a"),
+    ds("下向き長波",H.map(r=>r.lw_down),"#8f7de6"),
+    ds("上向き長波",H.map(r=>r.lw_up),"#c76d9e"),
+    ds("地中伝導熱",H.map(r=>r.soil_heat),"#6ec98e"),
+  ],{min:YRANGE.rad.min,max:YRANGE.rad.max,title:"W/m²"});
+}
+
+function renderRecent(d){
+  const H=d.history;
+  drawTempHum("chTempHum",H);
+  drawWind("chWind",H);
+  drawWbgtSeries("chWbgt",H);
+  drawRad("chRad",H);
+  windRadar("chWindRadar",d.latest.wind_deg??0,d.latest.wind??0);
+}
+function renderYesterday(y){
+  if(!y||!y.history||!y.history.length){
+    document.getElementById("ydayNote1").textContent="前日データはまだありません";
+    return;
+  }
+  const H=y.history;
+  drawTempHum("yTempHum",H);
+  drawWind("yWind",H);
+  drawWbgtSeries("yWbgt",H);
+  drawRad("yRad",H);
+  document.getElementById("ydayNote1").textContent=`${y.date} 00:00 〜 23:00`;
+}
+
+// ダミー（未取得時）
+function makeDummyRow(t){
+  const h=t.getHours();
+  const temp=15+12*Math.sin((h-8)/24*Math.PI*2)+(Math.random()-0.5);
+  const sun=Math.max(0,850*Math.sin((h-6)/12*Math.PI));
+  return {time:`${String(t.getMonth()+1).padStart(2,"0")}/${String(t.getDate()).padStart(2,"0")} ${String(h).padStart(2,"0")}:00`,
+    temperature:temp, globe_temp:temp+Math.min(14,sun/60),
+    humidity:70-20*Math.sin((h-8)/24*Math.PI*2)+Math.random()*3,
+    wind:0.8+Math.abs(Math.sin(h/3))*2.5, wind_deg:(h*37)%360,
+    wind_dir:["北","北東","東","南東","南","南西","西","北西"][h%8],
+    solar:sun, sw_down:sun*0.94, sw_up:sun*0.15,
+    lw_down:520+Math.random()*10, lw_up:460+Math.random()*10,
+    soil_heat:20+15*Math.sin((h-10)/12*Math.PI)};
+}
+function makeDummy(){
+  const rows=[],now=new Date();
+  for(let i=24;i>=0;i--) rows.push(makeDummyRow(new Date(now.getTime()-i*3600*1000)));
+  return {stamp:`${now.getFullYear()}/${String(now.getMonth()+1).padStart(2,"0")}/${String(now.getDate()).padStart(2,"0")} ${String(now.getHours()).padStart(2,"0")}:00`,
+    latest:rows[rows.length-1], history:rows, dummy:true};
+}
+function makeDummyYesterday(){
+  const rows=[],base=new Date(); base.setDate(base.getDate()-1);
+  for(let h=0;h<24;h++){const t=new Date(base); t.setHours(h,0,0,0);
+    const r=makeDummyRow(t); r.time=`${String(h).padStart(2,"0")}:00`; rows.push(r);}
+  return {date:`${base.getFullYear()}/${String(base.getMonth()+1).padStart(2,"0")}/${String(base.getDate()).padStart(2,"0")}`,history:rows};
+}
+
+async function fetchJson(path){
+  const res=await fetch(path,{cache:"no-store"});
+  if(!res.ok) throw 0; return res.json();
+}
+async function boot(){
+  let d,y,dummy=false;
+  try{ d=await fetchJson("data.json"); }
+  catch(e){ d=makeDummy(); dummy=true; }
+  try{ y=await fetchJson("yesterday.json"); }
+  catch(e){ y=dummy?makeDummyYesterday():null; }
+
+  document.getElementById("stamp").textContent=d.stamp;
+  document.getElementById("fnote").innerHTML =
+    dummy?"※ 現在はサンプル表示です（<code>data.json</code> 未取得）。":"";
+  renderLatest(d);
+  renderWbgtPanel(d);
+  renderRecent(d);
+  renderYesterday(y);
+}
+boot();
+</script>
+</body>
+</html>
