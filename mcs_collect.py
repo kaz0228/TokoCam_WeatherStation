@@ -334,13 +334,37 @@ def _vector_mean_direction(group: list[dict]) -> Optional[float]:
     return round(ang, 1)
 
 
+def ensure_yesterday_json(now_ts: str) -> bool:
+    """前日1日分を必要なときだけ生成/更新する。
+
+    実際に書き換えたら True、既に最新で何もしなければ False を返す。
+    - yesterday.json が無い、または中身の日付が「前日」でない場合に生成。
+    - すでに前日分が入っていれば何もしない（毎回の再生成を避ける）。
+    これにより、0時台の実行を逃しても次の実行で確実に前日分が作られる。
+    """
+    now = datetime.strptime(now_ts, "%Y-%m-%d %H:%M")
+    yday = (now - timedelta(days=1)).strftime("%Y-%m-%d")
+
+    current_date = None
+    if YDAY_JSON.exists():
+        try:
+            current_date = json.loads(YDAY_JSON.read_text(encoding="utf-8")).get("date")
+        except Exception:
+            current_date = None
+
+    if current_date == yday.replace("-", "/"):
+        return False
+
+    return write_yesterday_json(now_ts)
+
+
 def write_yesterday_json(now_ts: str):
     now = datetime.strptime(now_ts, "%Y-%m-%d %H:%M")
     yday = (now - timedelta(days=1)).strftime("%Y-%m-%d")
     raw = load_day_history(yday)
     if not raw:
         print(f"前日（{yday}）のデータがまだありません")
-        return
+        return False
     rows = hourly_average(raw)   # 10分値 → 1時間平均24点
     YDAY_JSON.write_text(
         json.dumps({"date": yday.replace("-", "/"), "history": rows},
@@ -348,6 +372,7 @@ def write_yesterday_json(now_ts: str):
         encoding="utf-8",
     )
     print(f"yesterday.json 更新（{yday} / 1時間平均 {len(rows)} 点 / 元 {len(raw)} 点）")
+    return True
 
 # =========================
 # git push
@@ -391,15 +416,17 @@ async def run_once():
     write_data_json(row, history)
     print(f"data.json 更新（直近24時間 {len(history)} 点）")
 
-    # 日付が変わった直後（00:00〜00:09台）の実行で、前日1日分を集約
-    ndt = datetime.strptime(row["timestamp"], "%Y-%m-%d %H:%M")
-    if ndt.hour == 0 and ndt.minute < 10:
-        write_yesterday_json(row["timestamp"])
+    # 前日1日分（1時間平均24点）を必要に応じて生成する。
+    # 0時台の1回に限定せず、「前日分が古ければ生成」する方式にして
+    # 実行タイミングのすれ違いに強くする。
+    yday_updated = ensure_yesterday_json(row["timestamp"])
 
-    if GIT_PUSH and is_new:
+    # 新しい正時データを追記したか、前日分を更新したときに push する。
+    # （前日分だけ更新された場合も確実に反映されるようにする）
+    if GIT_PUSH and (is_new or yday_updated):
         git_push()
-    elif not is_new:
-        print("同時刻データは追記済みのため push しません")
+    else:
+        print("更新なしのため push しません")
 
 
 if __name__ == "__main__":
