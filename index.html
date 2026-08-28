@@ -49,6 +49,19 @@
   .specs dd{margin:0;color:var(--ink);font-family:"Roboto Mono",monospace;font-size:12.5px}
   .specs .calib{margin-top:14px;font-size:12px;color:var(--ink-dim);line-height:1.8}
   .specs .calib b{color:var(--ink);font-weight:500}
+  .derived{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));
+    gap:14px;margin-bottom:32px}
+  .dcard{background:var(--panel);border:1px solid var(--line);border-radius:10px;
+    padding:16px 16px 14px;display:flex;flex-direction:column;gap:8px}
+  .dcard .dhead{display:flex;align-items:center;gap:9px}
+  .dcard .dicon{width:30px;height:30px;flex-shrink:0}
+  .dcard .dname{font-size:13px;color:var(--ink);font-weight:500;line-height:1.3}
+  .dcard .dval{font-family:"Roboto Mono",monospace;font-weight:500;
+    font-size:26px;line-height:1;color:var(--accent)}
+  .dcard .dval .du{font-size:13px;color:var(--ink-dim);font-weight:400;margin-left:2px}
+  .dcard .dbar{height:5px;border-radius:3px;background:var(--panel-2);overflow:hidden}
+  .dcard .dbar span{display:block;height:100%;border-radius:3px;transition:width .4s}
+  .dcard .ddesc{font-size:11.5px;color:var(--ink-dim);line-height:1.6}
   .dot{display:inline-block;width:8px;height:8px;border-radius:50%;background:var(--accent);
     margin-right:7px;vertical-align:middle;animation:pulse 2.4s infinite}
   @keyframes pulse{0%{box-shadow:0 0 0 0 rgba(94,200,216,0.45)}
@@ -159,6 +172,22 @@
     </div>
   </section>
 
+  <section class="wbgt">
+    <svg class="fig" id="feelsFig" viewBox="0 0 96 120" aria-hidden="true"></svg>
+    <div class="info">
+      <div class="lv"><span id="feelsVal">—</span><span class="u"> ℃（体感温度の目安）</span></div>
+      <span class="badge" id="feelsBadge">—</span>
+      <div class="advice" id="feelsAdvice"></div>
+      <div class="disclaimer">
+        気温に風の冷却・日射の加温を加えた簡易推定です。体感には個人差（活動量・服装・年齢など）があり、
+        服装の目安はあくまで参考です。
+      </div>
+    </div>
+  </section>
+
+  <div class="section-label">派生環境指標（最新値から計算）</div>
+  <section class="derived" id="derived"></section>
+
   <div class="section-label">直近24時間</div>
   <section class="charts">
     <div class="card">
@@ -183,7 +212,7 @@
     </div>
     <div class="card full">
       <h2>放射収支 ・ 地中伝導熱</h2>
-      <div class="note">日射量・上下向き短波・上下向き長波・地中伝導熱（直近24時間・1時間ごと）</div>
+      <div class="note">下向き短波（日射量）・上向き短波・上下向き長波・地中伝導熱（直近24時間・1時間ごと）</div>
       <div class="chart-box" style="height:300px"><canvas id="chRad"></canvas></div>
     </div>
   </section>
@@ -229,6 +258,9 @@
   JavaScriptを有効にするか、uepiece-kaz[at]suou.waseda.jp（[at]を@に変換）までご連絡ください。
 </noscript>
     <span id="fnote"></span>
+    <br><br>
+    <span style="opacity:0.85">観測機材・気象観測ステーションには、株式会社プリード（PREDE Co., Ltd.）製の機器を使用しています。
+    <a href="https://www.prede.com/" target="_blank" rel="noopener">https://www.prede.com/</a></span>
   </footer>
 </div>
 
@@ -238,8 +270,7 @@ const FIELDS = [
   {key:"globe_temp",  label:"黒球温度",   unit:"℃"},
   {key:"humidity",    label:"湿度",       unit:"%"},
   {key:"wind",        label:"最大風速",   unit:"m/s", wind:true},
-  {key:"solar",       label:"日射量",     unit:"W/m²"},
-  {key:"sw_down",     label:"下向き短波", unit:"W/m²"},
+  {key:"solar",       label:"下向き短波（日射量）", unit:"W/m²"},
   {key:"sw_up",       label:"上向き短波", unit:"W/m²"},
   {key:"lw_down",     label:"下向き長波", unit:"W/m²"},
   {key:"lw_up",       label:"上向き長波", unit:"W/m²"},
@@ -361,7 +392,147 @@ function renderWbgtPanel(d){
   drawWbgtFigure(lv.color);
 }
 
-// 気温・黒球・湿度／風速／WBGT／放射 の4系統を、24時間・前日の両方で使う
+// ===== 派生環境指標 =====
+// すべて最新観測値から確立した式で計算（黒球なし項目も気温・湿度・放射のみで算出）
+function saturationVaporPressure(T){ // kPa, Tetens
+  return 0.6108*Math.exp(17.27*T/(T+237.3));
+}
+function calcVPD(T, RH){ // 飽差 kPa
+  if(T==null||RH==null) return null;
+  return saturationVaporPressure(T)*(1-RH/100);
+}
+function calcDewPoint(T, RH){ // 露点 ℃, Magnus
+  if(T==null||RH==null||RH<=0) return null;
+  const a=17.27,b=237.3, g=Math.log(RH/100)+a*T/(b+T);
+  return b*g/(a-g);
+}
+function calcNetRadiation(swd,swu,lwd,lwu){ // 正味放射 W/m2
+  if([swd,swu,lwd,lwu].some(v=>v==null)) return null;
+  return (swd-swu)+(lwd-lwu);
+}
+function calcAlbedo(swd,swu){ // 反射率
+  if(swd==null||swu==null||swd<20) return null; // 夜間・低日射は不定
+  return swu/swd;
+}
+function calcPPFD(solar){ // 光合成有効光量子束密度 umol/m2/s
+  if(solar==null) return null;
+  return solar*0.45*2.02; // PAR≈45%, 2.02 umol/J
+}
+
+// 各指標の見せ方（アイコン・色・バー範囲・意味）
+function svgIcon(kind,color){
+  const c=color;
+  if(kind==="vpd") return `<svg class="dicon" viewBox="0 0 30 30"><path d="M15 3 C15 3 7 13 7 19 a8 8 0 0 0 16 0 C23 13 15 3 15 3Z" fill="none" stroke="${c}" stroke-width="1.8"/><path d="M12 25 l6-14" stroke="${c}" stroke-width="1.6" stroke-linecap="round"/></svg>`;
+  if(kind==="dew") return `<svg class="dicon" viewBox="0 0 30 30"><path d="M15 5 C15 5 8 14 8 20 a7 7 0 0 0 14 0 C22 14 15 5 15 5Z" fill="${c}" opacity="0.85"/></svg>`;
+  if(kind==="net") return `<svg class="dicon" viewBox="0 0 30 30"><circle cx="15" cy="10" r="5" fill="${c}"/><path d="M15 18 v8 M11 22 h8" stroke="${c}" stroke-width="1.8" stroke-linecap="round"/><path d="M6 27 h18" stroke="${c}" stroke-width="1.6"/></svg>`;
+  if(kind==="albedo") return `<svg class="dicon" viewBox="0 0 30 30"><path d="M15 4 v9 M15 4 l-3 3 M15 4 l3 3" stroke="${c}" stroke-width="1.6" stroke-linecap="round" fill="none"/><path d="M6 22 h18" stroke="${c}" stroke-width="1.6"/><path d="M15 22 l-4 -6 M15 22 l4 -6" stroke="${c}" stroke-width="1.6" stroke-linecap="round"/></svg>`;
+  if(kind==="swup") return `<svg class="dicon" viewBox="0 0 30 30"><path d="M6 23 h18" stroke="${c}" stroke-width="1.6"/><path d="M11 22 l4 -10 M19 22 l-4 -10" stroke="${c}" stroke-width="1.6" stroke-linecap="round"/><path d="M15 6 l0 5 M15 6 l-2.5 2.5 M15 6 l2.5 2.5" stroke="${c}" stroke-width="1.6" stroke-linecap="round" fill="none"/></svg>`;
+  return `<svg class="dicon" viewBox="0 0 30 30"><circle cx="15" cy="15" r="7" fill="${c}"/>${[0,45,90,135,180,225,270,315].map(a=>{const r=a*Math.PI/180;return `<line x1="${15+9*Math.cos(r)}" y1="${15+9*Math.sin(r)}" x2="${15+12*Math.cos(r)}" y2="${15+12*Math.sin(r)}" stroke="${c}" stroke-width="1.6" stroke-linecap="round"/>`}).join("")}</svg>`;
+}
+
+// ===== 体感温度（簡易推定）＋ 服装の目安 =====
+// 気温に、風の冷却と日射の加温を加えた簡易推定（確立した唯一の式はない→目安）
+function apparentTemp(Ta, wind, solar){
+  if(Ta==null) return null;
+  const v=Math.max(0, wind==null?0:wind);
+  const windCool=-1.5*Math.sqrt(v);        // 風で下がる
+  const s=Math.max(0, solar==null?0:solar);
+  const solarWarm=Math.min(6.0, s/200.0);  // 日なたで上がる（頭打ち6℃）
+  return Ta + windCool + solarWarm;
+}
+function clothingLevel(at){
+  if(at==null) return {name:"—",color:"#8ea0a7",advice:"データを取得できませんでした。",wear:"none"};
+  if(at>=30) return {name:"暑い",color:"#d0603a",wear:"tshirt",
+    advice:"半袖で。日陰と水分補給を忘れずに。熱中症に注意。"};
+  if(at>=23) return {name:"暖かい",color:"#e8a24b",wear:"tshirt",
+    advice:"半袖〜薄手で快適。日差しが強ければ帽子を。"};
+  if(at>=16) return {name:"快適",color:"#6ec98e",wear:"longsleeve",
+    advice:"長袖一枚で心地よい気温。"};
+  if(at>=8) return {name:"肌寒い",color:"#5ec8d8",wear:"jacket",
+    advice:"羽織るものが一枚あると安心。"};
+  if(at>=2) return {name:"寒い",color:"#6db3e6",wear:"coat",
+    advice:"上着・コートを。風があるとさらに冷える。"};
+  return {name:"厳しい寒さ",color:"#8f9de6",wear:"coat",
+    advice:"厚手のコート・手袋を。防寒をしっかり。"};
+}
+// 服装の人物アイコン（WBGTと同じ描き方。服の色と装備が体感で変わる）
+function drawClothingFigure(color, wear){
+  const svg=document.getElementById("feelsFig");
+  const halo=`<defs><radialGradient id="chalo" cx="50%" cy="35%" r="60%">
+      <stop offset="0%" stop-color="${color}" stop-opacity="0.35"/>
+      <stop offset="100%" stop-color="${color}" stop-opacity="0"/>
+    </radialGradient></defs>
+    <ellipse cx="48" cy="46" rx="46" ry="44" fill="url(#chalo)"/>`;
+  const head=`<circle cx="48" cy="30" r="11" fill="${color}"/>`;
+  // 胴体（服）: coatは長く裾広がり、jacketは中丈、長袖/半袖は体型
+  let body;
+  if(wear==="coat"){
+    body=`<path d="M48 43 C34 43 30 55 30 70 L28 108 L40 108 L42 78 L48 78 L54 78 L56 108 L68 108 L66 70 C66 55 62 43 48 43Z" fill="${color}"/>
+          <path d="M48 45 L48 100" stroke="#0f1417" stroke-width="1.4" opacity="0.5"/>`;
+  }else if(wear==="jacket"){
+    body=`<path d="M48 43 C36 43 32 54 32 68 L31 100 L41 100 L43 76 L53 76 L55 100 L65 100 L64 68 C64 54 60 43 48 43Z" fill="${color}"/>`;
+  }else if(wear==="longsleeve"){
+    body=`<path d="M48 44 C38 44 34 54 34 66 L33 98 L42 98 L44 74 L52 74 L54 98 L63 98 L62 66 C62 54 58 44 48 44Z" fill="${color}"/>`;
+  }else{ // tshirt: 袖短く腕が出る
+    body=`<path d="M48 44 C40 44 37 50 36 58 L34 66 L40 68 L42 60 L43 96 L53 96 L54 60 L56 68 L62 66 L60 58 C59 50 56 44 48 44Z" fill="${color}"/>`;
+  }
+  svg.innerHTML=halo+`<circle cx="74" cy="22" r="7" fill="${color}" opacity="0.9"/>`+head+body;
+}
+function renderFeelsLike(d){
+  const L=d.latest;
+  const at=apparentTemp(L.temperature, L.wind, L.solar);
+  const lv=clothingLevel(at);
+  document.getElementById("feelsVal").textContent = at==null?"—":at.toFixed(1);
+  const badge=document.getElementById("feelsBadge");
+  badge.textContent=lv.name; badge.style.background=lv.color+"22";
+  badge.style.color=lv.color; badge.style.border=`1px solid ${lv.color}`;
+  document.getElementById("feelsAdvice").textContent=lv.advice;
+  drawClothingFigure(lv.color, lv.wear);
+}
+
+function renderDerived(d){
+  const L=d.latest;
+  const vpd=calcVPD(L.temperature,L.humidity);
+  const dew=calcDewPoint(L.temperature,L.humidity);
+  const net=calcNetRadiation(L.solar,L.sw_up,L.lw_down,L.lw_up);
+  const alb=calcAlbedo(L.solar,L.sw_up);
+  const ppfd=calcPPFD(L.solar);
+  const f=(v,n=2)=>v==null?"—":v.toFixed(n);
+  const pct=(v,min,max)=>v==null?0:Math.max(0,Math.min(100,(v-min)/(max-min)*100));
+
+  const items=[
+    {kind:"ppfd", color:"#e8c15a", name:"PPFD（光合成有効光）",
+     val:f(ppfd,0), unit:"μmol/m²/s", bar:pct(ppfd,0,2000),
+     desc:"植物が光合成に使える波長帯の光の量。日射量から換算。"},
+    {kind:"vpd", color:"#6db3e6", name:"VPD（飽差）",
+     val:f(vpd,2), unit:"kPa", bar:pct(vpd,0,4),
+     desc:"空気の乾き具合。大きいほど植物は蒸散で水を失いやすい。"},
+    {kind:"net", color:"#e0895a", name:"正味放射量",
+     val:f(net,0), unit:"W/m²", bar:pct(net,-100,800),
+     desc:"地表が正味で受け取るエネルギー。下向き−上向きの放射の合計。昼は正、夜は負。"},
+    {kind:"swup", color:"#c97d3a", name:"上向き短波（反射日射）",
+     val:f(L.sw_up,0), unit:"W/m²", bar:pct(L.sw_up,0,300),
+     desc:"地表が反射して上に返す日射。地面の明るさ・状態で変わる。"},
+    {kind:"albedo", color:"#8fd0c0", name:"アルベド（反射率）",
+     val:alb==null?"—":alb.toFixed(2), unit:"", bar:pct(alb,0,0.5),
+     desc:"上向き短波÷日射量。日射のうち反射する割合。芝地は0.2前後。夜間は表示なし。"},
+    {kind:"dew", color:"#8f9de6", name:"露点温度",
+     val:f(dew,1), unit:"℃", bar:pct(dew,-10,30),
+     desc:"空気中の水蒸気が凝結し始める温度。結露・霧・放射冷却の目安。"},
+  ];
+
+  const host=document.getElementById("derived"); host.innerHTML="";
+  items.forEach(it=>{
+    const el=document.createElement("div"); el.className="dcard";
+    el.innerHTML=`
+      <div class="dhead">${svgIcon(it.kind,it.color)}<div class="dname">${it.name}</div></div>
+      <div class="dval">${it.val}<span class="du">${it.unit}</span></div>
+      <div class="dbar"><span style="width:${it.bar}%;background:${it.color}"></span></div>
+      <div class="ddesc">${it.desc}</div>`;
+    host.appendChild(el);
+  });
+}
+
 function drawTempHum(id,H){
   lineChart(id,H.map(r=>r.time),[
     ds("気温 (℃)",H.map(r=>r.temperature),"#e0895a","y"),
@@ -390,8 +561,7 @@ function drawWbgtSeries(id,H){
 }
 function drawRad(id,H){
   lineChart(id,H.map(r=>r.time),[
-    ds("日射量",H.map(r=>r.solar),"#e8c15a"),
-    ds("下向き短波",H.map(r=>r.sw_down),"#f0a95a"),
+    ds("下向き短波（日射量）",H.map(r=>r.solar),"#e8c15a"),
     ds("上向き短波",H.map(r=>r.sw_up),"#c97d3a"),
     ds("下向き長波",H.map(r=>r.lw_down),"#8f7de6"),
     ds("上向き長波",H.map(r=>r.lw_up),"#c76d9e"),
@@ -463,6 +633,8 @@ async function boot(){
     dummy?"※ 現在はサンプル表示です（<code>data.json</code> 未取得）。":"";
   renderLatest(d);
   renderWbgtPanel(d);
+  renderFeelsLike(d);
+  renderDerived(d);
   renderRecent(d);
   renderYesterday(y);
 }
