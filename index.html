@@ -62,6 +62,10 @@
   .dcard .dbar{height:5px;border-radius:3px;background:var(--panel-2);overflow:hidden}
   .dcard .dbar span{display:block;height:100%;border-radius:3px;transition:width .4s}
   .dcard .ddesc{font-size:11.5px;color:var(--ink-dim);line-height:1.6}
+  .dcard .dnote{font-size:12px;font-weight:500;line-height:1.3}
+  .dcard .dscale{display:flex;justify-content:space-between;
+    font-family:"Roboto Mono",monospace;font-size:10px;color:var(--ink-dim);
+    margin-top:-3px}
   .dot{display:inline-block;width:8px;height:8px;border-radius:50%;background:var(--accent);
     margin-right:7px;vertical-align:middle;animation:pulse 2.4s infinite}
   @keyframes pulse{0%{box-shadow:0 0 0 0 rgba(94,200,216,0.45)}
@@ -260,7 +264,9 @@
     <span id="fnote"></span>
     <br><br>
     <span style="opacity:0.85">観測機材・気象観測ステーションには、株式会社プリード（PREDE Co., Ltd.）製の機器を使用しています。
-    <a href="https://www.prede.com/" target="_blank" rel="noopener">https://www.prede.com/</a></span>
+    <a href="https://www.prede.com/" target="_blank" rel="noopener">https://www.prede.com/</a><br>
+    観測データの収集・蓄積・配信には「M.C.S IoT クラウドサービス」を利用しています。
+    <a href="https://mcs-fs.com/" target="_blank" rel="noopener">https://mcs-fs.com/</a></span>
   </footer>
 </div>
 
@@ -426,7 +432,6 @@ function svgIcon(kind,color){
   if(kind==="dew") return `<svg class="dicon" viewBox="0 0 30 30"><path d="M15 5 C15 5 8 14 8 20 a7 7 0 0 0 14 0 C22 14 15 5 15 5Z" fill="${c}" opacity="0.85"/></svg>`;
   if(kind==="net") return `<svg class="dicon" viewBox="0 0 30 30"><circle cx="15" cy="10" r="5" fill="${c}"/><path d="M15 18 v8 M11 22 h8" stroke="${c}" stroke-width="1.8" stroke-linecap="round"/><path d="M6 27 h18" stroke="${c}" stroke-width="1.6"/></svg>`;
   if(kind==="albedo") return `<svg class="dicon" viewBox="0 0 30 30"><path d="M15 4 v9 M15 4 l-3 3 M15 4 l3 3" stroke="${c}" stroke-width="1.6" stroke-linecap="round" fill="none"/><path d="M6 22 h18" stroke="${c}" stroke-width="1.6"/><path d="M15 22 l-4 -6 M15 22 l4 -6" stroke="${c}" stroke-width="1.6" stroke-linecap="round"/></svg>`;
-  if(kind==="swup") return `<svg class="dicon" viewBox="0 0 30 30"><path d="M6 23 h18" stroke="${c}" stroke-width="1.6"/><path d="M11 22 l4 -10 M19 22 l-4 -10" stroke="${c}" stroke-width="1.6" stroke-linecap="round"/><path d="M15 6 l0 5 M15 6 l-2.5 2.5 M15 6 l2.5 2.5" stroke="${c}" stroke-width="1.6" stroke-linecap="round" fill="none"/></svg>`;
   return `<svg class="dicon" viewBox="0 0 30 30"><circle cx="15" cy="15" r="7" fill="${c}"/>${[0,45,90,135,180,225,270,315].map(a=>{const r=a*Math.PI/180;return `<line x1="${15+9*Math.cos(r)}" y1="${15+9*Math.sin(r)}" x2="${15+12*Math.cos(r)}" y2="${15+12*Math.sin(r)}" stroke="${c}" stroke-width="1.6" stroke-linecap="round"/>`}).join("")}</svg>`;
 }
 
@@ -500,24 +505,38 @@ function renderDerived(d){
   const f=(v,n=2)=>v==null?"—":v.toFixed(n);
   const pct=(v,min,max)=>v==null?0:Math.max(0,Math.min(100,(v-min)/(max-min)*100));
 
+  // 値→コメント（帯ごとの一言）。thresholds は [上限, ラベル] の並び、最後は既定。
+  function comment(v, bands){
+    if(v==null) return "—";
+    for(const [th,label] of bands){ if(v<th) return label; }
+    return bands[bands.length-1][1];
+  }
+
   const items=[
     {kind:"ppfd", color:"#e8c15a", name:"PPFD（光合成有効光）",
-     val:f(ppfd,0), unit:"μmol/m²/s", bar:pct(ppfd,0,2000),
-     desc:"植物が光合成に使える波長帯の光の量。日射量から換算。"},
+     val:f(ppfd,0), unit:"μmol/m²/s", min:0, max:2000, bar:pct(ppfd,0,2000),
+     lo:"0", hi:"2000",
+     note:comment(ppfd,[[50,"ほぼ暗い（夜間）"],[200,"弱い光"],[600,"曇り〜日陰程度"],[1200,"生育に十分な光"],[9e9,"強い直射光"]]),
+     desc:"植物が光合成に使える波長帯の光の量。日射量から換算。晴天の正午で1500前後。"},
     {kind:"vpd", color:"#6db3e6", name:"VPD（飽差）",
-     val:f(vpd,2), unit:"kPa", bar:pct(vpd,0,4),
-     desc:"空気の乾き具合。大きいほど植物は蒸散で水を失いやすい。"},
+     val:f(vpd,2), unit:"kPa", min:0, max:4, bar:pct(vpd,0,4),
+     lo:"0", hi:"4",
+     note:comment(vpd,[[0.4,"過湿ぎみ"],[1.2,"植物に快適"],[2.0,"やや乾燥"],[9e9,"乾燥ストレス大"]]),
+     desc:"空気の乾き具合。大きいほど植物は蒸散で水を失いやすい。0.4〜1.6が生育に好適とされる。"},
     {kind:"net", color:"#e0895a", name:"正味放射量",
-     val:f(net,0), unit:"W/m²", bar:pct(net,-100,800),
+     val:f(net,0), unit:"W/m²", min:-100, max:800, bar:pct(net,-100,800),
+     lo:"−100", hi:"800",
+     note:comment(net,[[-5,"放射冷却（地表が冷える）"],[50,"ほぼ平衡"],[9e9,"地表が加熱中"]]),
      desc:"地表が正味で受け取るエネルギー。下向き−上向きの放射の合計。昼は正、夜は負。"},
-    {kind:"swup", color:"#c97d3a", name:"上向き短波（反射日射）",
-     val:f(L.sw_up,0), unit:"W/m²", bar:pct(L.sw_up,0,300),
-     desc:"地表が反射して上に返す日射。地面の明るさ・状態で変わる。"},
     {kind:"albedo", color:"#8fd0c0", name:"アルベド（反射率）",
-     val:alb==null?"—":alb.toFixed(2), unit:"", bar:pct(alb,0,0.5),
-     desc:"上向き短波÷日射量。日射のうち反射する割合。芝地は0.2前後。夜間は表示なし。"},
+     val:alb==null?"—":alb.toFixed(2), unit:"", min:0.05, max:0.25, bar:pct(alb,0.05,0.25),
+     lo:"0.05", hi:"0.25",
+     note:comment(alb,[[0.12,"濃い緑・湿った地面"],[0.20,"標準的な草地"],[9e9,"明るい・乾いた地面"]]),
+     desc:"上向き短波÷日射量。日射のうち反射する割合。下草の状態や季節で変わる。夜間は表示なし。"},
     {kind:"dew", color:"#8f9de6", name:"露点温度",
-     val:f(dew,1), unit:"℃", bar:pct(dew,-10,30),
+     val:f(dew,1), unit:"℃", min:-10, max:30, bar:pct(dew,-10,30),
+     lo:"−10", hi:"30",
+     note:comment(dew,[[0,"乾燥・凍結の目安"],[15,"さらっとした空気"],[20,"湿っぽい"],[9e9,"蒸し暑い"]]),
      desc:"空気中の水蒸気が凝結し始める温度。結露・霧・放射冷却の目安。"},
   ];
 
@@ -527,7 +546,9 @@ function renderDerived(d){
     el.innerHTML=`
       <div class="dhead">${svgIcon(it.kind,it.color)}<div class="dname">${it.name}</div></div>
       <div class="dval">${it.val}<span class="du">${it.unit}</span></div>
+      <div class="dnote" style="color:${it.color}">${it.note}</div>
       <div class="dbar"><span style="width:${it.bar}%;background:${it.color}"></span></div>
+      <div class="dscale"><span>${it.lo}</span><span>${it.hi}</span></div>
       <div class="ddesc">${it.desc}</div>`;
     host.appendChild(el);
   });
