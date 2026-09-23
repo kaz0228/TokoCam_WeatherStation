@@ -1,39 +1,23 @@
 {
- "stamp": "2026/09/23 23:20",
+ "stamp": "2026/09/23 23:30",
  "latest": {
-  "timestamp": "2026-09-23 23:20",
+  "timestamp": "2026-09-23 23:30",
   "date": "2026-09-23",
-  "time": "09/23 23:20",
-  "temperature": 18.4,
-  "globe_temp": 18.3,
+  "time": "09/23 23:30",
+  "temperature": 18.5,
+  "globe_temp": 18.4,
   "humidity": 99.5,
-  "wind": 1.2,
-  "wind_deg": 261.0,
-  "wind_dir": "西",
-  "solar": -0.278,
-  "sw_down": -0.427,
-  "sw_up": 0.095,
-  "lw_down": 408.443,
-  "lw_up": 411.71,
-  "soil_heat": -3.869
+  "wind": 0.8,
+  "wind_deg": 248.0,
+  "wind_dir": "西南西",
+  "solar": -0.223,
+  "sw_down": -0.365,
+  "sw_up": 0.151,
+  "lw_down": 408.82,
+  "lw_up": 412.116,
+  "soil_heat": -3.871
  },
  "history": [
-  {
-   "time": "09/22 23:20",
-   "timestamp": "2026-09-22 23:20",
-   "temperature": 22.2,
-   "globe_temp": 22.0,
-   "humidity": 88.6,
-   "wind": 1.0,
-   "wind_deg": 267.0,
-   "solar": -0.16,
-   "sw_down": 0.189,
-   "sw_up": 0.732,
-   "lw_down": 424.063,
-   "lw_up": 429.825,
-   "soil_heat": -1.473,
-   "wind_dir": "西"
-  },
   {
    "time": "09/22 23:30",
    "timestamp": "2026-09-22 23:30",
@@ -2305,6 +2289,22 @@
    "lw_up": 411.71,
    "soil_heat": -3.869,
    "wind_dir": "西"
+  },
+  {
+   "time": "09/23 23:30",
+   "timestamp": "2026-09-23 23:30",
+   "temperature": 18.5,
+   "globe_temp": 18.4,
+   "humidity": 99.5,
+   "wind": 0.8,
+   "wind_deg": 248.0,
+   "solar": -0.223,
+   "sw_down": -0.365,
+   "sw_up": 0.151,
+   "lw_down": 408.82,
+   "lw_up": 412.116,
+   "soil_heat": -3.871,
+   "wind_dir": "西南西"
   }
  ]
 }
